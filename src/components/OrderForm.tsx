@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { X, Plus, Minus, ChevronDown } from 'lucide-react';
-import { Order, OrderItem, Supplier } from '../types';
+import { Order, OrderItem, Supplier, Product } from '../types';
 import { format } from 'date-fns';
 import { getSuppliers } from '../api/suppliers';
+import { getItems } from '../api/items';
 
 interface OrderFormProps {
   isOpen: boolean;
@@ -13,8 +14,12 @@ interface OrderFormProps {
 
 const OrderForm: React.FC<OrderFormProps> = ({ isOpen, onClose, onSave, lastOrderNumber }) => {
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
   const [showSupplierDropdown, setShowSupplierDropdown] = useState(false);
+  const [showProductDropdown, setShowProductDropdown] = useState(false);
   const [supplierSearch, setSupplierSearch] = useState('');
+  const [productSearch, setProductSearch] = useState('');
 
   const generateOrderNumber = () => {
     if (!lastOrderNumber) return 'ORD-001';
@@ -47,12 +52,28 @@ const OrderForm: React.FC<OrderFormProps> = ({ isOpen, onClose, onSave, lastOrde
     price: 0,
   });
 
-  // Cargar proveedores al abrir el modal
+  // Cargar proveedores y productos al abrir el modal
   useEffect(() => {
     if (isOpen) {
       loadSuppliers();
+      loadProducts();
     }
   }, [isOpen]);
+
+  // Filtrar productos cuando cambie el proveedor seleccionado
+  useEffect(() => {
+    if (formData.supplier) {
+      const supplierProducts = products.filter(product => 
+        product.supplier.toLowerCase() === formData.supplier.toLowerCase()
+      );
+      setFilteredProducts(supplierProducts);
+    } else {
+      setFilteredProducts([]);
+    }
+    // Limpiar el producto seleccionado cuando cambie el proveedor
+    setNewItem(prev => ({ ...prev, name: '', price: 0 }));
+    setProductSearch('');
+  }, [formData.supplier, products]);
 
   const loadSuppliers = async () => {
     try {
@@ -63,15 +84,39 @@ const OrderForm: React.FC<OrderFormProps> = ({ isOpen, onClose, onSave, lastOrde
     }
   };
 
+  const loadProducts = async () => {
+    try {
+      const response = await getItems();
+      setProducts(response.data);
+    } catch (error) {
+      console.error('Error al cargar productos:', error);
+    }
+  };
+
   // Filtrar proveedores basado en la búsqueda
   const filteredSuppliers = suppliers.filter(supplier =>
     supplier.name.toLowerCase().includes(supplierSearch.toLowerCase())
+  );
+
+  // Filtrar productos del proveedor seleccionado basado en la búsqueda
+  const searchFilteredProducts = filteredProducts.filter(product =>
+    product.name.toLowerCase().includes(productSearch.toLowerCase())
   );
 
   const handleSupplierSelect = (supplierName: string) => {
     setFormData({ ...formData, supplier: supplierName });
     setSupplierSearch(supplierName);
     setShowSupplierDropdown(false);
+  };
+
+  const handleProductSelect = (product: Product) => {
+    setNewItem({
+      ...newItem,
+      name: product.name,
+      price: product.price,
+    });
+    setProductSearch(product.name);
+    setShowProductDropdown(false);
   };
 
   const addItem = () => {
@@ -96,6 +141,7 @@ const OrderForm: React.FC<OrderFormProps> = ({ isOpen, onClose, onSave, lastOrde
       quantity: 1,
       price: 0,
     });
+    setProductSearch('');
   };
 
   const removeItem = (index: number) => {
@@ -173,7 +219,7 @@ const OrderForm: React.FC<OrderFormProps> = ({ isOpen, onClose, onSave, lastOrde
                         >
                           <div>
                             <p className="font-medium text-gray-900">{supplier.name}</p>
-                            <p className="text-sm text-gray-500">{supplier.insumo}</p>
+                            <p className="text-sm text-gray-500 truncate">{supplier.insumo}</p>
                           </div>
                         </button>
                       ))
@@ -228,16 +274,65 @@ const OrderForm: React.FC<OrderFormProps> = ({ isOpen, onClose, onSave, lastOrde
             <h3 className="text-lg font-medium text-gray-900 mb-4">Insumos</h3>
             
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
-              <div className="md:col-span-2">
+              {/* Nombre del insumo con dropdown filtrado por proveedor */}
+              <div className="md:col-span-2 relative">
                 <label className="block text-sm font-medium text-gray-700 mb-1">Nombre del insumo</label>
-                <input
-                  type="text"
-                  placeholder="Nombre del insumo"
-                  value={newItem.name}
-                  onChange={(e) => setNewItem({ ...newItem, name: e.target.value })}
-                  className="w-full rounded-md border-gray-300 shadow-sm focus:border-red-500 focus:ring-red-500"
-                />
+                <div className="relative">
+                  <input
+                    type="text"
+                    placeholder={formData.supplier ? "Buscar insumo del proveedor..." : "Seleccione un proveedor primero"}
+                    value={productSearch}
+                    onChange={(e) => {
+                      setProductSearch(e.target.value);
+                      setNewItem({ ...newItem, name: e.target.value });
+                      setShowProductDropdown(true);
+                    }}
+                    onFocus={() => formData.supplier && setShowProductDropdown(true)}
+                    disabled={!formData.supplier}
+                    className="w-full rounded-md border-gray-300 shadow-sm focus:border-red-500 focus:ring-red-500 pr-10 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                  />
+                  {formData.supplier && (
+                    <button
+                      type="button"
+                      onClick={() => setShowProductDropdown(!showProductDropdown)}
+                      className="absolute inset-y-0 right-0 flex items-center pr-3"
+                    >
+                      <ChevronDown className="w-4 h-4 text-gray-400" />
+                    </button>
+                  )}
+                  
+                  {/* Dropdown de productos filtrados por proveedor */}
+                  {showProductDropdown && formData.supplier && (
+                    <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
+                      {searchFilteredProducts.length > 0 ? (
+                        searchFilteredProducts.map((product) => (
+                          <button
+                            key={product._id}
+                            type="button"
+                            onClick={() => handleProductSelect(product)}
+                            className="w-full text-left px-4 py-2 hover:bg-gray-100 focus:bg-gray-100 focus:outline-none"
+                          >
+                            <div>
+                              <p className="font-medium text-gray-900">{product.name}</p>
+                              <p className="text-sm text-gray-500">
+                                ${product.price.toLocaleString()} - Stock: {product.quantity} {product.unit}
+                              </p>
+                            </div>
+                          </button>
+                        ))
+                      ) : (
+                        <div className="px-4 py-2 text-gray-500">
+                          {filteredProducts.length === 0 
+                            ? "Este proveedor no tiene insumos registrados"
+                            : "No se encontraron insumos"
+                          }
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Cantidad</label>
                 <input
@@ -258,13 +353,15 @@ const OrderForm: React.FC<OrderFormProps> = ({ isOpen, onClose, onSave, lastOrde
                     placeholder="Precio"
                     value={newItem.price}
                     onChange={(e) => setNewItem({ ...newItem, price: Number(e.target.value) })}
-                    className="w-full rounded-md border-gray-300 shadow-sm focus:border-red-500 focus:ring-red-500"
+                    className="w-full rounded-md border-gray-300 shadow-sm focus:border-red-500 focus:ring-red-500 bg-gray-50"
+                    readOnly
                   />
                 </div>
                 <button
                   type="button"
                   onClick={addItem}
-                  className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors"
+                  disabled={!newItem.name || !newItem.quantity || !newItem.price}
+                  className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
                 >
                   <Plus className="w-5 h-5" />
                 </button>
