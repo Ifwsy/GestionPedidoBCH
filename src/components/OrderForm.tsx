@@ -215,11 +215,14 @@ const OrderForm: React.FC<OrderFormProps> = ({ isOpen, onClose, onSave, lastOrde
                           key={supplier._id}
                           type="button"
                           onClick={() => handleSupplierSelect(supplier.name)}
-                          className="w-full text-left px-4 py-2 hover:bg-gray-100 focus:bg-gray-100 focus:outline-none"
+                          className="w-full text-left px-4 py-3 hover:bg-gray-100 focus:bg-gray-100 focus:outline-none border-b border-gray-100 last:border-b-0"
                         >
                           <div>
                             <p className="font-medium text-gray-900">{supplier.name}</p>
                             <p className="text-sm text-gray-500 truncate">{supplier.insumo}</p>
+                            {supplier.additionalInfo && (
+                              <p className="text-xs text-gray-400 mt-1">{supplier.additionalInfo}</p>
+                            )}
                           </div>
                         </button>
                       ))
@@ -269,6 +272,30 @@ const OrderForm: React.FC<OrderFormProps> = ({ isOpen, onClose, onSave, lastOrde
             </div>
           </div>
 
+          {/* Información del proveedor seleccionado */}
+          {formData.supplier && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <h3 className="text-sm font-medium text-blue-800 mb-2">Información del Proveedor</h3>
+              {(() => {
+                const selectedSupplier = suppliers.find(s => s.name === formData.supplier);
+                if (!selectedSupplier) return null;
+                
+                return (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <p className="text-blue-700"><strong>RUT:</strong> {selectedSupplier.rut || 'No disponible'}</p>
+                      <p className="text-blue-700"><strong>Email:</strong> {selectedSupplier.email || 'No disponible'}</p>
+                    </div>
+                    <div>
+                      <p className="text-blue-700"><strong>Insumos:</strong> {selectedSupplier.insumo}</p>
+                      <p className="text-blue-700"><strong>Productos disponibles:</strong> {filteredProducts.length}</p>
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+          )}
+
           {/* Agregar insumos */}
           <div className="border-t border-gray-200 pt-6">
             <h3 className="text-lg font-medium text-gray-900 mb-4">Insumos</h3>
@@ -310,18 +337,19 @@ const OrderForm: React.FC<OrderFormProps> = ({ isOpen, onClose, onSave, lastOrde
                             key={product._id}
                             type="button"
                             onClick={() => handleProductSelect(product)}
-                            className="w-full text-left px-4 py-2 hover:bg-gray-100 focus:bg-gray-100 focus:outline-none"
+                            className="w-full text-left px-4 py-3 hover:bg-gray-100 focus:bg-gray-100 focus:outline-none border-b border-gray-100 last:border-b-0"
                           >
                             <div>
                               <p className="font-medium text-gray-900">{product.name}</p>
                               <p className="text-sm text-gray-500">
                                 ${product.price.toLocaleString()} - Stock: {product.quantity} {product.unit}
                               </p>
+                              <p className="text-xs text-gray-400">SKU: {product.sku} | Categoría: {product.category}</p>
                             </div>
                           </button>
                         ))
                       ) : (
-                        <div className="px-4 py-2 text-gray-500">
+                        <div className="px-4 py-3 text-gray-500">
                           {filteredProducts.length === 0 
                             ? "Este proveedor no tiene insumos registrados"
                             : "No se encontraron insumos"
